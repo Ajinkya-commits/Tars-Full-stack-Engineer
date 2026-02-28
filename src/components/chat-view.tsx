@@ -144,6 +144,11 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
     return /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(name);
   };
 
+  const isAudioFile = (name?: string | null) => {
+    if (!name) return false;
+    return /\.(webm|mp3|wav|ogg|m4a|aac)$/i.test(name);
+  };
+
   return (
     <div className="flex h-full flex-col">
       {conversation ? (
@@ -284,24 +289,34 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
                         />
                       )}
 
-                      {msg.fileUrl && !isImageFile(msg.fileName) && (
-                        <a
-                          href={msg.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`flex items-center gap-2 rounded-lg p-2 mb-1.5 transition-colors ${
-                            isMe
-                              ? "bg-blue-700/50 hover:bg-blue-700/70"
-                              : "bg-background/50 hover:bg-background/70"
-                          }`}
-                        >
-                          <FileText className="h-5 w-5 shrink-0" />
-                          <span className="text-xs truncate flex-1">
-                            {msg.fileName}
-                          </span>
-                          <Download className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                        </a>
+                      {msg.fileUrl && isAudioFile(msg.fileName) && (
+                        <audio
+                          src={msg.fileUrl}
+                          controls
+                          className="max-w-[240px] h-8 mb-1"
+                        />
                       )}
+
+                      {msg.fileUrl &&
+                        !isImageFile(msg.fileName) &&
+                        !isAudioFile(msg.fileName) && (
+                          <a
+                            href={msg.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-center gap-2 rounded-lg p-2 mb-1.5 transition-colors ${
+                              isMe
+                                ? "bg-blue-700/50 hover:bg-blue-700/70"
+                                : "bg-background/50 hover:bg-background/70"
+                            }`}
+                          >
+                            <FileText className="h-5 w-5 shrink-0" />
+                            <span className="text-xs truncate flex-1">
+                              {msg.fileName}
+                            </span>
+                            <Download className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                          </a>
+                        )}
 
                       {msg.body &&
                         !(msg.fileUrl && msg.body === msg.fileName) && (
