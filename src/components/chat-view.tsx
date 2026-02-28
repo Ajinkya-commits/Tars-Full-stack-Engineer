@@ -24,6 +24,7 @@ import {
   RotateCw,
   FileText,
   Download,
+  Users,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 
@@ -138,7 +139,7 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
 
   return (
     <div className="flex h-full flex-col">
-      {otherUser ? (
+      {conversation ? (
         <div className="flex items-center gap-3 border-b px-4 py-3">
           {onBack && (
             <Button
@@ -150,27 +151,49 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           )}
-          <div className="relative">
-            <Avatar className="h-9 w-9">
-              <AvatarImage src={otherUser.image} />
-              <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-500 text-white text-xs">
-                {otherUser.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            {otherUser.isOnline && (
-              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold truncate">{otherUser.name}</h2>
-            <p className="text-xs text-muted-foreground">
-              {otherUser.isOnline ? "Online" : "Offline"}
-            </p>
-          </div>
+          {conversation.isGroup ? (
+            <>
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="bg-linear-to-br from-indigo-500 to-pink-500 text-white">
+                  <Users className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold truncate">
+                  {conversation.name}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {conversation.memberCount} members
+                </p>
+              </div>
+            </>
+          ) : otherUser ? (
+            <>
+              <div className="relative">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={otherUser.image} />
+                  <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-500 text-white text-xs">
+                    {otherUser.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                {otherUser.isOnline && (
+                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold truncate">
+                  {otherUser.name}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {otherUser.isOnline ? "Online" : "Offline"}
+                </p>
+              </div>
+            </>
+          ) : null}
         </div>
       ) : (
         <ChatHeaderSkeleton />
@@ -201,6 +224,11 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
                     <p className="text-sm">This message was deleted</p>
                   ) : (
                     <>
+                      {conversation?.isGroup && !isMe && msg.sender && (
+                        <p className="text-[10px] font-semibold mb-0.5 text-blue-400">
+                          {msg.sender.name}
+                        </p>
+                      )}
                       {msg.fileUrl && isImageFile(msg.fileName) && (
                         <img
                           src={msg.fileUrl}

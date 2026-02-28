@@ -11,8 +11,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { NoConversations, NoSearchResults } from "@/components/empty-state";
 import { ConversationListSkeleton } from "@/components/skeletons";
+import { CreateGroupDialog } from "@/components/create-group-dialog";
 import { formatSidebarTime } from "@/lib/format-date";
-import { Search, MessageSquarePlus } from "lucide-react";
+import { Search, MessageSquarePlus, Users } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 
 interface SidebarProps {
@@ -70,13 +71,22 @@ export function Sidebar({
             ChatSync
           </h1>
         </div>
-        <button
-          onClick={() => setIsSearchingUsers(!isSearchingUsers)}
-          className="rounded-lg p-2 hover:bg-muted transition-colors"
-          title="New conversation"
-        >
-          <MessageSquarePlus className="h-5 w-5 text-muted-foreground" />
-        </button>
+        <div className="flex items-center gap-1">
+          <CreateGroupDialog
+            onGroupCreated={(id) => {
+              onSelectConversation(id);
+              setIsSearchingUsers(false);
+              setSearchQuery("");
+            }}
+          />
+          <button
+            onClick={() => setIsSearchingUsers(!isSearchingUsers)}
+            className="rounded-lg p-2 hover:bg-muted transition-colors"
+            title="New conversation"
+          >
+            <MessageSquarePlus className="h-5 w-5 text-muted-foreground" />
+          </button>
+        </div>
       </div>
 
       <div className="px-3 pb-2">
@@ -162,23 +172,33 @@ export function Sidebar({
                 >
                   <div className="relative">
                     <Avatar className="h-11 w-11">
-                      <AvatarImage src={conv.otherUser?.image} />
-                      <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-500 text-white text-xs">
-                        {conv.otherUser?.name
-                          ?.split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase() ?? "?"}
-                      </AvatarFallback>
+                      {conv.isGroup ? (
+                        <AvatarFallback className="bg-linear-to-br from-indigo-500 to-pink-500 text-white text-xs">
+                          <Users className="h-5 w-5" />
+                        </AvatarFallback>
+                      ) : (
+                        <>
+                          <AvatarImage src={conv.otherUser?.image} />
+                          <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-500 text-white text-xs">
+                            {conv.otherUser?.name
+                              ?.split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase() ?? "?"}
+                          </AvatarFallback>
+                        </>
+                      )}
                     </Avatar>
-                    {conv.otherUser?.isOnline && (
+                    {!conv.isGroup && conv.otherUser?.isOnline && (
                       <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold truncate">
-                        {conv.otherUser?.name ?? "Unknown"}
+                        {conv.isGroup
+                          ? conv.name
+                          : (conv.otherUser?.name ?? "Unknown")}
                       </p>
                       {conv.lastMessage && (
                         <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
@@ -188,11 +208,13 @@ export function Sidebar({
                     </div>
                     <div className="flex items-center justify-between mt-0.5">
                       <p className="text-xs text-muted-foreground truncate pr-2">
-                        {conv.lastMessage
-                          ? conv.lastMessage.deleted
-                            ? "Message deleted"
-                            : conv.lastMessage.body
-                          : "No messages yet"}
+                        {conv.isGroup && !conv.lastMessage
+                          ? `${conv.memberCount} members`
+                          : conv.lastMessage
+                            ? conv.lastMessage.deleted
+                              ? "Message deleted"
+                              : conv.lastMessage.body
+                            : "No messages yet"}
                       </p>
                       {conv.unreadCount > 0 && (
                         <Badge

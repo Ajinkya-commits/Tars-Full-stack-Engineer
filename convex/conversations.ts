@@ -38,7 +38,39 @@ export const getOrCreateConversation = mutation({
   },
 });
 
-// Enriches each conversation with otherUser, lastMessage, and unreadCount
+export const createGroupConversation = mutation({
+  args: {
+    name: v.string(),
+    memberIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const me = await getCurrentUser(ctx);
+    if (!me) throw new Error("Not authenticated");
+
+    if (args.memberIds.length < 2) {
+      throw new Error("Groups need at least 2 other members");
+    }
+
+    const allParticipants = [me._id, ...args.memberIds];
+
+    const conversationId = await ctx.db.insert("conversations", {
+      isGroup: true,
+      name: args.name,
+      participants: allParticipants,
+      createdAt: Date.now(),
+    });
+
+    for (const userId of allParticipants) {
+      await ctx.db.insert("conversationMembers", {
+        conversationId,
+        userId,
+      });
+    }
+
+    return conversationId;
+  },
+});
+
 export const getMyConversations = query({
   handler: async (ctx) => {
     const me = await getCurrentUser(ctx);
@@ -51,10 +83,11 @@ export const getMyConversations = query({
 
     const enriched = await Promise.all(
       myConversations.map(async (conv) => {
-        const otherUserId = conv.participants.find((p) => p !== me._id);
-        const otherUser = otherUserId
-          ? await ctx.db.get(otherUserId)
-          : null;
+        let otherUser = null;
+        if (!conv.isGroup) {
+          const otherUserId = conv.participants.find((p) => p !== me._id);
+          otherUser = otherUserId ? await ctx.db.get(otherUserId) : null;
+        }
 
         const lastMessage = conv.lastMessageId
           ? await ctx.db.get(conv.lastMessageId)
@@ -97,6 +130,7 @@ export const getMyConversations = query({
         return {
           ...conv,
           otherUser,
+          memberCount: conv.participants.length,
           lastMessage,
           unreadCount,
         };
