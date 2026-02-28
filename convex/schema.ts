@@ -23,6 +23,8 @@ export default defineSchema({
     conversationId: v.id("conversations"),
     senderId: v.id("users"),
     body: v.string(),
+    fileId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
     deleted: v.boolean(),
     createdAt: v.number(),
   }).index("by_conversationId", ["conversationId"]),

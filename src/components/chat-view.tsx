@@ -22,8 +22,15 @@ import {
   Trash2,
   AlertCircle,
   RotateCw,
+  FileText,
+  Download,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
+
+interface LightboxImage {
+  url: string;
+  name: string;
+}
 
 interface ChatViewProps {
   conversationId: Id<"conversations">;
@@ -37,6 +44,7 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
   const conversations = useQuery(api.conversations.getMyConversations);
 
   const sendMessage = useMutation(api.messages.sendMessage);
+  const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
   const deleteMessage = useMutation(api.messages.deleteMessage);
   const markAsRead = useMutation(api.conversationMembers.markAsRead);
   const { handleTyping, stopTyping } = useTyping(conversationId);
@@ -45,6 +53,7 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
     { id: number; body: string }[]
   >([]);
   const [nextFailId, setNextFailId] = useState(0);
+  const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
 
   const { scrollRef, bottomRef, showNewMessages, scrollToBottom } =
     useSmartScroll(messages?.length);
@@ -64,15 +73,29 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
     }
   }, [messages, me, conversationId, markAsRead]);
 
-  // Clear failed messages when switching conversations
   useEffect(() => {
     setFailedMessages([]);
   }, [conversationId]);
 
   const attemptSend = useCallback(
-    async (body: string, failId?: number) => {
+    async (body: string, file?: File, failId?: number) => {
       try {
-        await sendMessage({ conversationId, body });
+        let fileId: Id<"_storage"> | undefined;
+        let fileName: string | undefined;
+
+        if (file) {
+          const uploadUrl = await generateUploadUrl();
+          const result = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": file.type },
+            body: file,
+          });
+          const { storageId } = await result.json();
+          fileId = storageId;
+          fileName = file.name;
+        }
+
+        await sendMessage({ conversationId, body, fileId, fileName });
         if (failId !== undefined) {
           setFailedMessages((prev) => prev.filter((m) => m.id !== failId));
         }
@@ -84,17 +107,17 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
         }
       }
     },
-    [conversationId, sendMessage, nextFailId],
+    [conversationId, sendMessage, generateUploadUrl, nextFailId],
   );
 
-  const handleSend = (body: string) => {
-    attemptSend(body);
+  const handleSend = (body: string, file?: File) => {
+    attemptSend(body, file);
     stopTyping();
     setTimeout(() => scrollToBottom(), 50);
   };
 
   const handleRetry = (failId: number, body: string) => {
-    attemptSend(body, failId);
+    attemptSend(body, undefined, failId);
   };
 
   const handleDismiss = (failId: number) => {
@@ -107,6 +130,11 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
       .map((u) => u.name) ?? [];
 
   const isLoading = messages === undefined;
+
+  const isImageFile = (name?: string | null) => {
+    if (!name) return false;
+    return /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(name);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -173,9 +201,46 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
                     <p className="text-sm">This message was deleted</p>
                   ) : (
                     <>
-                      <p className="text-sm leading-relaxed wrap-break-word">
-                        {msg.body}
-                      </p>
+                      {msg.fileUrl && isImageFile(msg.fileName) && (
+                        <img
+                          src={msg.fileUrl}
+                          alt={msg.fileName || "Image"}
+                          onClick={() =>
+                            setLightbox({
+                              url: msg.fileUrl!,
+                              name: msg.fileName || "Image",
+                            })
+                          }
+                          className="rounded-lg max-h-64 w-auto mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
+                        />
+                      )}
+
+                      {msg.fileUrl && !isImageFile(msg.fileName) && (
+                        <a
+                          href={msg.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-2 rounded-lg p-2 mb-1.5 transition-colors ${
+                            isMe
+                              ? "bg-blue-700/50 hover:bg-blue-700/70"
+                              : "bg-background/50 hover:bg-background/70"
+                          }`}
+                        >
+                          <FileText className="h-5 w-5 shrink-0" />
+                          <span className="text-xs truncate flex-1">
+                            {msg.fileName}
+                          </span>
+                          <Download className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                        </a>
+                      )}
+
+                      {msg.body &&
+                        !(msg.fileUrl && msg.body === msg.fileName) && (
+                          <p className="text-sm leading-relaxed wrap-break-word">
+                            {msg.body}
+                          </p>
+                        )}
+
                       {isMe && !msg.deleted && (
                         <button
                           onClick={() => deleteMessage({ messageId: msg._id })}
@@ -253,6 +318,22 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
       )}
 
       <MessageInput onSend={handleSend} onTyping={handleTyping} />
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setLightbox(null)}
+          onKeyDown={(e) => e.key === "Escape" && setLightbox(null)}
+          tabIndex={0}
+        >
+          <img
+            src={lightbox.url}
+            alt={lightbox.name}
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

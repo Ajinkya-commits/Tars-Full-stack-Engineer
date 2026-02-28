@@ -6,6 +6,8 @@ export const sendMessage = mutation({
   args: {
     conversationId: v.id("conversations"),
     body: v.string(),
+    fileId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const me = await getCurrentUser(ctx);
@@ -15,6 +17,8 @@ export const sendMessage = mutation({
       conversationId: args.conversationId,
       senderId: me._id,
       body: args.body,
+      fileId: args.fileId,
+      fileName: args.fileName,
       deleted: false,
       createdAt: Date.now(),
     });
@@ -23,7 +27,6 @@ export const sendMessage = mutation({
       lastMessageId: messageId,
     });
 
-    // Auto-mark as read for the sender
     const memberRecord = await ctx.db
       .query("conversationMembers")
       .withIndex("by_conversationId_userId", (q) =>
@@ -54,11 +57,23 @@ export const getMessages = query({
     const enriched = await Promise.all(
       messages.map(async (msg) => {
         const sender = await ctx.db.get(msg.senderId);
-        return { ...msg, sender };
+        let fileUrl: string | null = null;
+        if (msg.fileId) {
+          fileUrl = await ctx.storage.getUrl(msg.fileId);
+        }
+        return { ...msg, sender, fileUrl };
       })
     );
 
     return enriched;
+  },
+});
+
+export const generateUploadUrl = mutation({
+  handler: async (ctx) => {
+    const me = await getCurrentUser(ctx);
+    if (!me) throw new Error("Not authenticated");
+    return await ctx.storage.generateUploadUrl();
   },
 });
 
