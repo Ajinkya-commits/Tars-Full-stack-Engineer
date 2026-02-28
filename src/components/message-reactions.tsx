@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 
-const EMOJI_SET = ["👍", "❤️", "😂", "😮", "😢"];
+const EMOJI_SET = ["👍", "❤️", "😂", "😮", "😢", "🔥", "😶‍🌫️"];
 
 interface MessageReactionsProps {
   messageId: Id<"messages">;

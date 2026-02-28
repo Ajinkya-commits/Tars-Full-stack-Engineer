@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { NoConversations, NoSearchResults } from "@/components/empty-state";
+import { ConversationListSkeleton } from "@/components/skeletons";
 import { formatSidebarTime } from "@/lib/format-date";
 import { Search, MessageSquarePlus } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
@@ -143,6 +144,7 @@ export function Sidebar({
 
         {!isSearchingUsers && (
           <div className="p-2">
+            {conversations === undefined && <ConversationListSkeleton />}
             {conversations && conversations.length === 0 && <NoConversations />}
             {conversations?.map((conv) => {
               const isActive = activeConversationId === conv._id;
