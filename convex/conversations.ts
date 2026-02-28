@@ -144,3 +144,22 @@ export const getMyConversations = query({
     });
   },
 });
+
+export const getGroupMembers = query({
+  args: { conversationId: v.id("conversations") },
+  handler: async (ctx, args) => {
+    const conv = await ctx.db.get(args.conversationId);
+    if (!conv) return [];
+
+    const members = await Promise.all(
+      conv.participants.map(async (userId) => {
+        const user = await ctx.db.get(userId);
+        return user
+          ? { _id: user._id, name: user.name, image: user.image, isOnline: user.isOnline }
+          : null;
+      })
+    );
+
+    return members.filter((m) => m !== null);
+  },
+});

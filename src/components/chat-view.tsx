@@ -25,6 +25,7 @@ import {
   FileText,
   Download,
   Users,
+  ChevronDown,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 
@@ -55,12 +56,18 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
   >([]);
   const [nextFailId, setNextFailId] = useState(0);
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
+  const [showMembers, setShowMembers] = useState(false);
 
   const { scrollRef, bottomRef, showNewMessages, scrollToBottom } =
     useSmartScroll(messages?.length);
 
   const conversation = conversations?.find((c) => c._id === conversationId);
   const otherUser = conversation?.otherUser;
+
+  const groupMembers = useQuery(
+    api.conversations.getGroupMembers,
+    conversation?.isGroup ? { conversationId } : "skip",
+  );
 
   useEffect(() => {
     if (messages && messages.length > 0 && me) {
@@ -162,9 +169,15 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
                 <h2 className="text-sm font-semibold truncate">
                   {conversation.name}
                 </h2>
-                <p className="text-xs text-muted-foreground">
+                <button
+                  onClick={() => setShowMembers(!showMembers)}
+                  className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
                   {conversation.memberCount} members
-                </p>
+                  <ChevronDown
+                    className={`h-3 w-3 transition-transform ${showMembers ? "rotate-180" : ""}`}
+                  />
+                </button>
               </div>
             </>
           ) : otherUser ? (
@@ -197,6 +210,34 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
         </div>
       ) : (
         <ChatHeaderSkeleton />
+      )}
+
+      {showMembers && groupMembers && (
+        <div className="border-b px-4 py-2 bg-muted/30 space-y-1 max-h-48 overflow-y-auto">
+          {groupMembers.map((member) => (
+            <div key={member._id} className="flex items-center gap-2 py-1">
+              <div className="relative">
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={member.image} />
+                  <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-500 text-white text-[8px]">
+                    {member.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                {member.isOnline && (
+                  <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-background" />
+                )}
+              </div>
+              <span className="text-xs truncate">{member.name}</span>
+              {me && member._id === me._id && (
+                <span className="text-[10px] text-muted-foreground">(you)</span>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
       {isLoading ? (
