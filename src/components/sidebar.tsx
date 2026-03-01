@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { NoConversations, NoSearchResults } from "@/components/empty-state";
 import { ConversationListSkeleton } from "@/components/skeletons";
 import { CreateGroupDialog } from "@/components/create-group-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { formatSidebarTime } from "@/lib/format-date";
 import { Search, MessageSquarePlus, Users } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
@@ -72,6 +73,7 @@ export function Sidebar({
           </h1>
         </div>
         <div className="flex items-center gap-1">
+          <ThemeToggle />
           <CreateGroupDialog
             onGroupCreated={(id) => {
               onSelectConversation(id);
