@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { MessageInput } from "@/components/message-input";
 import { TypingIndicator } from "@/components/typing-indicator";
 import { MessageReactions } from "@/components/message-reactions";
+import { ReadReceipt } from "@/components/read-receipt";
 import { NoMessages } from "@/components/empty-state";
 import {
   MessageListSkeleton,
@@ -26,12 +27,20 @@ import {
   Download,
   Users,
   ChevronDown,
+  Reply,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 
 interface LightboxImage {
   url: string;
   name: string;
+}
+
+interface ReplyToState {
+  _id: Id<"messages">;
+  body: string;
+  senderName: string;
+  fileName?: string | null;
 }
 
 interface ChatViewProps {
@@ -57,6 +66,9 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
   const [nextFailId, setNextFailId] = useState(0);
   const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
   const [showMembers, setShowMembers] = useState(false);
+  const [replyTo, setReplyTo] = useState<ReplyToState | null>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+
 
   const { scrollRef, bottomRef, showNewMessages, scrollToBottom } =
     useSmartScroll(messages?.length);
@@ -68,6 +80,11 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
     api.conversations.getGroupMembers,
     conversation?.isGroup ? { conversationId } : "skip",
   );
+
+  // Total other members count for read receipts
+  const totalOtherMembers = conversation
+    ? conversation.memberCount - 1
+    : 1;
 
   useEffect(() => {
     if (messages && messages.length > 0 && me) {
@@ -83,10 +100,11 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
 
   useEffect(() => {
     setFailedMessages([]);
+    setReplyTo(null);
   }, [conversationId]);
 
   const attemptSend = useCallback(
-    async (body: string, file?: File, failId?: number) => {
+    async (body: string, file?: File, replyToId?: Id<"messages">, failId?: number) => {
       try {
         let fileId: Id<"_storage"> | undefined;
         let fileName: string | undefined;
@@ -103,7 +121,7 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
           fileName = file.name;
         }
 
-        await sendMessage({ conversationId, body, fileId, fileName });
+        await sendMessage({ conversationId, body, fileId, fileName, replyToId });
         if (failId !== undefined) {
           setFailedMessages((prev) => prev.filter((m) => m.id !== failId));
         }
@@ -118,18 +136,33 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
     [conversationId, sendMessage, generateUploadUrl, nextFailId],
   );
 
-  const handleSend = (body: string, file?: File) => {
-    attemptSend(body, file);
+  const handleSend = (body: string, file?: File, replyToId?: Id<"messages">) => {
+    attemptSend(body, file, replyToId);
+    setReplyTo(null);
     stopTyping();
     setTimeout(() => scrollToBottom(), 50);
   };
 
   const handleRetry = (failId: number, body: string) => {
-    attemptSend(body, undefined, failId);
+    attemptSend(body, undefined, undefined, failId);
   };
 
   const handleDismiss = (failId: number) => {
     setFailedMessages((prev) => prev.filter((m) => m.id !== failId));
+  };
+
+  const handleReply = (msg: {
+    _id: Id<"messages">;
+    body: string;
+    sender: { name: string } | null;
+    fileName?: string | null;
+  }) => {
+    setReplyTo({
+      _id: msg._id,
+      body: msg.body,
+      senderName: msg.sender?.name ?? "Unknown",
+      fileName: msg.fileName,
+    });
   };
 
   const typingNames =
@@ -252,11 +285,28 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
           {messages.length === 0 && <NoMessages />}
           {messages.map((msg) => {
             const isMe = me && msg.senderId === me._id;
+            const isHovered = hoveredMessageId === msg._id;
+
             return (
               <div
                 key={msg._id}
                 className={`flex ${isMe ? "justify-end" : "justify-start"} group`}
+                onMouseEnter={() => setHoveredMessageId(msg._id)}
+                onMouseLeave={() => setHoveredMessageId(null)}
               >
+                {/* Reply button — shown on hover for non-deleted messages */}
+                {!msg.deleted && !isMe && (
+                  <button
+                    onClick={() => handleReply(msg)}
+                    className={`self-center mr-1 p-1 rounded-full hover:bg-muted transition-all ${
+                      isHovered ? "opacity-100" : "opacity-0"
+                    }`}
+                    title="Reply"
+                  >
+                    <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                )}
+
                 <div
                   className={`relative max-w-[75%] rounded-2xl px-3.5 py-2 ${
                     msg.deleted
@@ -275,6 +325,27 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
                           {msg.sender.name}
                         </p>
                       )}
+
+                      {/* Reply quoted block */}
+                      {msg.replyTo && (
+                        <div
+                          className={`mb-1.5 rounded-lg px-2.5 py-1.5 text-xs border-l-4 ${
+                            isMe
+                              ? "bg-blue-700/50 border-blue-300"
+                              : "bg-background/50 border-blue-500"
+                          }`}
+                        >
+                          <p className={`font-semibold truncate ${isMe ? "text-blue-200" : "text-blue-500"}`}>
+                            {msg.replyTo.senderName}
+                          </p>
+                          <p className={`truncate opacity-80 ${isMe ? "text-blue-100" : "text-muted-foreground"}`}>
+                            {msg.replyTo.fileName && !msg.replyTo.body
+                              ? `📎 ${msg.replyTo.fileName}`
+                              : msg.replyTo.body}
+                          </p>
+                        </div>
+                      )}
+
                       {msg.fileUrl && isImageFile(msg.fileName) && (
                         <img
                           src={msg.fileUrl}
@@ -336,17 +407,42 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
                       )}
                     </>
                   )}
-                  <p
-                    className={`mt-0.5 text-[10px] ${
-                      isMe ? "text-blue-200" : "text-muted-foreground"
-                    }`}
-                  >
-                    {formatMessageTime(msg.createdAt)}
-                  </p>
+
+                  {/* Timestamp + Read Receipt row */}
+                  <div className={`mt-0.5 flex items-center gap-0.5 ${isMe ? "justify-end" : "justify-start"}`}>
+                    <p
+                      className={`text-[10px] ${
+                        isMe ? "text-blue-200" : "text-muted-foreground"
+                      }`}
+                    >
+                      {formatMessageTime(msg.createdAt)}
+                    </p>
+                    {isMe && !msg.deleted && (
+                      <ReadReceipt
+                        readBy={msg.readBy ?? []}
+                        isGroup={!!conversation?.isGroup}
+                        totalOtherMembers={totalOtherMembers}
+                      />
+                    )}
+                  </div>
+
                   {!msg.deleted && (
                     <MessageReactions messageId={msg._id} isMe={!!isMe} />
                   )}
                 </div>
+
+                {/* Reply button — right side for own messages */}
+                {!msg.deleted && isMe && (
+                  <button
+                    onClick={() => handleReply(msg)}
+                    className={`self-center ml-1 p-1 rounded-full hover:bg-muted transition-all ${
+                      isHovered ? "opacity-100" : "opacity-0"
+                    }`}
+                    title="Reply"
+                  >
+                    <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                )}
               </div>
             );
           })}
@@ -401,7 +497,12 @@ export function ChatView({ conversationId, onBack }: ChatViewProps) {
         </div>
       )}
 
-      <MessageInput onSend={handleSend} onTyping={handleTyping} />
+      <MessageInput
+        onSend={handleSend}
+        onTyping={handleTyping}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+      />
 
       {lightbox && (
         <div

@@ -27,6 +27,7 @@ export default defineSchema({
     fileName: v.optional(v.string()),
     deleted: v.boolean(),
     createdAt: v.number(),
+    replyToId: v.optional(v.id("messages")),
   }).index("by_conversationId", ["conversationId"]),
 
   conversationMembers: defineTable({
