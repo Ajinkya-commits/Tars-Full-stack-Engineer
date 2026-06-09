@@ -52,7 +52,7 @@ export function ReadReceipt({
   // seen
   return (
     <CheckCheck
-      className="h-3 w-3 text-sky-300 inline-block ml-0.5"
+      className="h-3 w-3 text-yellow-400 inline-block ml-0.5"
       strokeWidth={2.5}
       aria-label="Seen"
     />
